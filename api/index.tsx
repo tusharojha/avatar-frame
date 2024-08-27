@@ -1,38 +1,69 @@
 import { Button, Frog, TextInput } from 'frog'
 import { devtools } from 'frog/dev'
 import { serveStatic } from 'frog/serve-static'
-// import { neynar } from 'frog/hubs'
-import { handle } from 'frog/vercel'
+import { keccakAsHex } from '@polkadot/util-crypto';
 
-// Uncomment to use Edge Runtime.
-// export const config = {
-//   runtime: 'edge',
-// }
+import { ApiPromise, WsProvider } from '@polkadot/api';
+
+import { handle } from 'frog/vercel'
 
 export const app = new Frog({
   assetsPath: '/',
   basePath: '/api',
-  // Supply a Hub to enable frame verification.
-  // hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
   title: 'Frog Frame',
 })
- 
+
+
 app.frame('/', (c) => {
   return c.res({
     action: '/finish',
     image: (
-      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-        Sign data
+      <div style={{
+        backgroundColor: 'crimson',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        width: '100%',
+        flex: 1,
+        textAlign: 'center'
+      }}>
+        <div style={{
+          fontSize: 80,
+          fontWeight: 'bold',
+          marginBottom: '10px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          Try Substrate ✨
+        </div>
+        <p style={{
+          fontSize: 42,
+          lineHeight: '1.5',
+          margin: '0'
+        }}>
+          Remark with your EVM wallet on any substrate chain in just 2 clicks!
+        </p>
       </div>
+      
     ),
     intents: [
-      <Button.Signature target="/sign">Sign</Button.Signature>,
+      <TextInput placeholder="What's happening?" />,
+      <Button.Signature target="/sign">Sign Remark</Button.Signature>
     ]
   })
 })
- 
+
 app.frame('/finish', (c) => {
   const { transactionId } = c
+
+  // Send transaction on-chain for the user.
+
+
+  // Ask user to wait in the UI.
+
   return c.res({
     image: (
       <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
@@ -41,43 +72,10 @@ app.frame('/finish', (c) => {
     )
   })
 })
- 
-app.signature('/sign', (c) => {
-  return c.signTypedData({
-    chainId: 'eip155:84532',
-    domain: {
-      name: 'Ether Mail',
-      version: '1',
-      chainId: 1,
-      verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
-    },
-    types: {
-      Person: [
-        { name: 'name', type: 'string' },
-        { name: 'wallet', type: 'address' },
-        { name: 'balance', type: 'uint256' },
-      ],
-      Mail: [
-        { name: 'from', type: 'Person' },
-        { name: 'to', type: 'Person' },
-        { name: 'contents', type: 'string' },
-      ],
-    },
-    primaryType: 'Mail',
-    message: {
-      from: {
-        name: 'Cow',
-        wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826',
-        balance: 0n,
-      },
-      to: {
-        name: 'Bob',
-        wallet: '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB',
-        balance: 1n,
-      },
-      contents: 'Hello, Bob!',
-    },
-  })
+
+app.signature('/sign', async (c) => {
+
+  return c.signTypedData()
 })
 
 // @ts-ignore
