@@ -7,9 +7,11 @@ import { ApiPromise, WsProvider } from '@polkadot/api';
 
 import { handle } from 'frog/vercel'
 
+import { stringToBlakeTwo256Hash } from '../helper.js'
+
 const keyring = new Keyring({ type: 'sr25519' });
 
-type State = {   
+type State = {
   transactionHash: string
   substrateAddress: string
 }
@@ -25,7 +27,7 @@ export const app = new Frog<{ State: State }>({
   }
 })
 
- 
+
 
 app.frame('/', (c) => {
   return c.res({
@@ -74,6 +76,10 @@ app.frame('/finish', (c) => {
 
   const state = c.deriveState()
 
+  // const subA = stringToBlakeTwo256Hash("evm:" + c.frameData?.address)
+
+  // console.log(subA)
+
   return c.res({
     action: '/next',
     image: (
@@ -105,10 +111,19 @@ app.frame('/finish', (c) => {
           lineHeight: '1.5',
           margin: '0'
         }}>
-          Hash: {state.transactionHash.slice(0, 4)}...{state.transactionHash.slice(state.transactionHash.length-4)}
+          Hash: {state.transactionHash.slice(0, 4)}...{state.transactionHash.slice(state.transactionHash.length - 4)}
+        </p>
+
+
+        <p style={{
+          fontSize: '42px',
+          lineHeight: '1.5',
+          margin: '0'
+        }}>
+          User Address: {state.substrateAddress}
         </p>
       </div>
-      
+
 
     ),
     intents: [
@@ -131,13 +146,38 @@ app.frame('/next', async (c) => {
     api.tx.system.remarkWithEvent(c.frameData?.inputText),
   ];
 
-  const tx = api.tx.templateModule.execTxs(c.frameData?.address, transactionId, calls)
-  const pair = keyring.addFromUri('//Alice')
+  async function sendTransactionAndGetBlockHash() {
+    const pair = keyring.addFromUri('//Alice')
+    return new Promise<String[]>((resolve, reject) => {
+      api.tx.templateModule.execTxs(c.frameData?.address, transactionId, calls)
+        .signAndSend(pair, async ({ status, events }) => {
+          if (status.isInBlock || status.isFinalized) {
+            const blockHash = status.asInBlock.toHex();
+            console.log(`Transaction included in blockHash ${blockHash}`);
+            let subsA = ''
+            events.forEach(({ event: { data, method, section } }) => {
+              if (method === 'UserSubstrateAddress' && section === 'templateModule') {
+                const [address] = data;
+                console.log('Extracted address:', address.toString());
+                subsA = address.toString()
+              }
+            });
+            resolve([blockHash.toString(), subsA]);
+          } else if (status.isInvalid) {
+            reject(new Error('Transaction failed'));
+          }
+        }).catch(error => {
+          reject(error);
+        });
+    });
+  }
+
 
   await c.deriveState(async previousState => {
-    const t = await tx.signAndSend(pair)
-    console.log('Tx Confirmed: ', t.toString())
-    previousState.transactionHash = t.toString();
+    const t = await sendTransactionAndGetBlockHash()
+    console.log('Tx Confirmed: ', t[0].toString())
+    previousState.transactionHash = t[0].toString();
+    previousState.substrateAddress = t[1].toString();
   })
 
   // Ask user to wait in the UI.

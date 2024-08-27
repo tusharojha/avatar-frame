@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@polkadot/api": "^12.4.2",
+    "blakejs": "^1.2.1",
     "ethers": "^5.7.0",
     "frog": "latest",
     "hono": "^4"
