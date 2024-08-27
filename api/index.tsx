@@ -2,21 +2,34 @@ import { Button, Frog, TextInput } from 'frog'
 import { devtools } from 'frog/dev'
 import { serveStatic } from 'frog/serve-static'
 import { keccakAsHex } from '@polkadot/util-crypto';
-
+import { Keyring } from '@polkadot/keyring'
 import { ApiPromise, WsProvider } from '@polkadot/api';
 
 import { handle } from 'frog/vercel'
 
-export const app = new Frog({
+const keyring = new Keyring({ type: 'sr25519' });
+
+type State = {   
+  transactionHash: string
+  substrateAddress: string
+}
+
+export const app = new Frog<{ State: State }>({
   assetsPath: '/',
   basePath: '/api',
   title: 'Frog Frame',
+
+  initialState: {
+    transactionHash: '',
+    substrateAddress: ''
+  }
 })
 
+ 
 
 app.frame('/', (c) => {
   return c.res({
-    action: '/finish',
+    action: '/next',
     image: (
       <div style={{
         backgroundColor: 'crimson',
@@ -24,6 +37,7 @@ app.frame('/', (c) => {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: 25,
         color: 'white',
         fontFamily: 'Arial, sans-serif',
         width: '100%',
@@ -47,7 +61,7 @@ app.frame('/', (c) => {
           Remark with your EVM wallet on any substrate chain in just 2 clicks!
         </p>
       </div>
-      
+
     ),
     intents: [
       <TextInput placeholder="What's happening?" />,
@@ -57,19 +71,116 @@ app.frame('/', (c) => {
 })
 
 app.frame('/finish', (c) => {
+
+  const state = c.deriveState()
+
+  return c.res({
+    action: '/next',
+    image: (
+      <div style={{
+        background: 'linear-gradient(135deg, #2a9d8f, #264653)', /* Gradient from teal to dark blue-green */
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        width: '100%',
+        flex: 1,
+        textAlign: 'center',
+        padding: '20px', /* Added padding for spacing */
+        boxSizing: 'border-box' /* Ensure padding doesn't affect the element's width */
+      }}>
+        <div style={{
+          fontSize: '80px',
+          fontWeight: 'bold',
+          marginBottom: '10px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          Transaction Confirmed ✨
+        </div>
+        <p style={{
+          fontSize: '42px',
+          lineHeight: '1.5',
+          margin: '0'
+        }}>
+          Hash: {state.transactionHash.slice(0, 4)}...{state.transactionHash.slice(state.transactionHash.length-4)}
+        </p>
+      </div>
+      
+
+    ),
+    intents: [
+      <TextInput placeholder="What's happening?" />,
+      <Button.Link href={`https://polkadot.js.org/apps/?rpc=ws%3A%2F%2F127.0.0.1%3A9944#/explorer/query/${state.transactionHash}`}>Open Explorer</Button.Link>,
+      <Button.Signature target="/sign">Sign Another Remark</Button.Signature>
+    ]
+  })
+})
+
+app.frame('/next', async (c) => {
   const { transactionId } = c
 
   // Send transaction on-chain for the user.
+  // Connect to a Substrate node
+  const wsProvider = new WsProvider('ws://127.0.0.1:9944');
+  const api = await ApiPromise.create({ provider: wsProvider });
 
+  const calls = [
+    api.tx.system.remarkWithEvent(c.frameData?.inputText),
+  ];
+
+  const tx = api.tx.templateModule.execTxs(c.frameData?.address, transactionId, calls)
+  const pair = keyring.addFromUri('//Alice')
+
+  await c.deriveState(async previousState => {
+    const t = await tx.signAndSend(pair)
+    console.log('Tx Confirmed: ', t.toString())
+    previousState.transactionHash = t.toString();
+  })
 
   // Ask user to wait in the UI.
 
   return c.res({
+    action: '/finish',
     image: (
-      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-        Signature: {transactionId}
+      <div style={{
+        background: 'linear-gradient(135deg, #e63946, #f1faee)', /* Gradient from crimson to light beige */
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'white',
+        fontFamily: 'Arial, sans-serif',
+        width: '100%',
+        flex: 1,
+        textAlign: 'center',
+        padding: '20px', /* Added padding for spacing */
+        boxSizing: 'border-box' /* Ensure padding doesn't affect the element's width */
+      }}>
+        <div style={{
+          fontSize: '80px',
+          fontWeight: 'bold',
+          marginBottom: '10px',
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          Transaction in process ⏳
+        </div>
+        <p style={{
+          fontSize: '42px',
+          lineHeight: '1.5',
+          margin: '0'
+        }}>
+          Please wait for a couple of seconds...
+        </p>
       </div>
-    )
+
+    ),
+    intents: [
+      <Button>Check Status</Button>
+    ]
   })
 })
 
@@ -79,13 +190,15 @@ app.signature('/sign', async (c) => {
   const api = await ApiPromise.create({ provider: wsProvider });
 
   const calls = [
-    api.tx.system.remarkWithEvent('hi'),
+    api.tx.system.remarkWithEvent(c.frameData?.inputText),
   ];
 
   // Encode the calls
   const encodedCalls = api.createType('Vec<Call>', calls).toU8a();
 
   const callHash = keccakAsHex(encodedCalls);
+
+  await api.disconnect()
 
   return c.signTypedData({
     chainId: 'eip155:84532',
