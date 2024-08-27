@@ -74,8 +74,29 @@ app.frame('/finish', (c) => {
 })
 
 app.signature('/sign', async (c) => {
+  // Connect to a Substrate node
+  const wsProvider = new WsProvider('ws://127.0.0.1:9944');
+  const api = await ApiPromise.create({ provider: wsProvider });
 
-  return c.signTypedData()
+  const calls = [
+    api.tx.system.remarkWithEvent('hi'),
+  ];
+
+  // Encode the calls
+  const encodedCalls = api.createType('Vec<Call>', calls).toU8a();
+
+  const callHash = keccakAsHex(encodedCalls);
+
+  return c.signTypedData({
+    chainId: 'eip155:84532',
+    types: {
+      Swamp: [{ name: 'calls_hash', type: 'string' }],
+    },
+    primaryType: 'Swamp',
+    message: {
+      calls_hash: callHash
+    },
+  })
 })
 
 // @ts-ignore
