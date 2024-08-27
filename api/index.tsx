@@ -16,21 +16,67 @@ export const app = new Frog({
   // hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
   title: 'Frog Frame',
 })
-
+ 
 app.frame('/', (c) => {
-  const { buttonValue, inputText, status } = c
-  const fruit = inputText || buttonValue
   return c.res({
-
-    image: 'https://i.ytimg.com/vi/R3UACX5eULI/maxresdefault.jpg',
-    
+    action: '/finish',
+    image: (
+      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
+        Sign data
+      </div>
+    ),
     intents: [
-      <TextInput placeholder="Enter custom fruit..." />,
-      <Button value="apples">Apples</Button>,
-      <Button value="oranges">Oranges</Button>,
-      <Button value="bananas">Bananas</Button>,
-      status === 'response' && <Button.Reset>Reset</Button.Reset>,
-    ],
+      <Button.Signature target="/sign">Sign</Button.Signature>,
+    ]
+  })
+})
+ 
+app.frame('/finish', (c) => {
+  const { transactionId } = c
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
+        Signature: {transactionId}
+      </div>
+    )
+  })
+})
+ 
+app.signature('/sign', (c) => {
+  return c.signTypedData({
+    chainId: 'eip155:84532',
+    domain: {
+      name: 'Ether Mail',
+      version: '1',
+      chainId: 1,
+      verifyingContract: '0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC',
+    },
+    types: {
+      Person: [
+        { name: 'name', type: 'string' },
+        { name: 'wallet', type: 'address' },
+        { name: 'balance', type: 'uint256' },
+      ],
+      Mail: [
+        { name: 'from', type: 'Person' },
+        { name: 'to', type: 'Person' },
+        { name: 'contents', type: 'string' },
+      ],
+    },
+    primaryType: 'Mail',
+    message: {
+      from: {
+        name: 'Cow',
+        wallet: '0xCD2a3d9F938E13CD947Ec05AbC7FE734Df8DD826',
+        balance: 0n,
+      },
+      to: {
+        name: 'Bob',
+        wallet: '0xbBbBBBBbbBBBbbbBbbBbbbbBBbBbbbbBbBbbBBbB',
+        balance: 1n,
+      },
+      contents: 'Hello, Bob!',
+    },
   })
 })
 
